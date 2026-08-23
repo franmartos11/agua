@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { obtenerMorosidad } from "@/lib/deuda";
 import { ExportCsvButton } from "@/components/export-csv-button";
@@ -20,13 +21,13 @@ export default async function ReportesPage() {
     obtenerMorosidad(supabase),
     supabase
       .from("factura")
-      .select("id, mes, anio, consumo_m3, monto_total, monto_pagado, estado, lote:lote_id(numero, perfil:propietario_id(nombre))")
+      .select("id, mes, anio, consumo_m3, monto_total, monto_pagado, estado, lote:lote_id(numero, propietario_id, perfil:propietario_id(nombre))")
       .order("anio", { ascending: false })
       .order("mes", { ascending: false }),
     supabase.from("pago").select("monto, factura:factura_id(mes, anio)"),
   ]);
 
-  type LoteInfo = { numero: string; perfil: { nombre: string } | null };
+  type LoteInfo = { numero: string; propietario_id: string | null; perfil: { nombre: string } | null };
   const filas = (facturas ?? []).map((f) => ({
     ...f,
     lote: f.lote as unknown as LoteInfo | null,
@@ -80,7 +81,15 @@ export default async function ReportesPage() {
             <tbody>
               {morosidad.map((d) => (
                 <tr key={d.propietarioId ?? "sin-propietario"} className={trClass}>
-                  <td className={tdClass}>{d.nombre}</td>
+                  <td className={tdClass}>
+                    {d.propietarioId ? (
+                      <Link href={`/admin/propietarios/${d.propietarioId}`} className="font-medium text-primary hover:underline">
+                        {d.nombre}
+                      </Link>
+                    ) : (
+                      d.nombre
+                    )}
+                  </td>
                   <td className={tdClass}>{d.telefono ?? "—"}</td>
                   <td className={tdClass}>{d.facturasImpagas}</td>
                   <td className={`${tdClass} font-medium text-danger`}>${d.saldo.toFixed(2)}</td>
@@ -119,8 +128,20 @@ export default async function ReportesPage() {
               {filas.map((f) => (
                 <tr key={f.id} className={trClass}>
                   <td className={tdClass}>{f.lote?.numero}</td>
-                  <td className={tdClass}>{f.lote?.perfil?.nombre ?? "—"}</td>
-                  <td className={tdClass}>{f.mes}/{f.anio}</td>
+                  <td className={tdClass}>
+                    {f.lote?.propietario_id ? (
+                      <Link href={`/admin/propietarios/${f.lote.propietario_id}`} className="text-primary hover:underline">
+                        {f.lote?.perfil?.nombre ?? "—"}
+                      </Link>
+                    ) : (
+                      f.lote?.perfil?.nombre ?? "—"
+                    )}
+                  </td>
+                  <td className={tdClass}>
+                    <Link href={`/admin/facturas/${f.id}`} className="text-primary hover:underline">
+                      {f.mes}/{f.anio}
+                    </Link>
+                  </td>
                   <td className={tdClass}>{f.consumo_m3}</td>
                   <td className={tdClass}>${f.monto_total}</td>
                   <td className={tdClass}>

@@ -88,7 +88,15 @@ export default async function PagosPage({
                         {f.lote?.numero}
                       </Link>
                     </td>
-                    <td className={tdClass}>{f.lote?.perfil?.nombre ?? "—"}</td>
+                    <td className={tdClass}>
+                      {f.lote?.propietario_id ? (
+                        <Link href={`/admin/propietarios/${f.lote.propietario_id}`} className="text-primary hover:underline">
+                          {f.lote?.perfil?.nombre ?? "—"}
+                        </Link>
+                      ) : (
+                        f.lote?.perfil?.nombre ?? "—"
+                      )}
+                    </td>
                     <td className={tdClass}>{f.lote?.perfil?.telefono ?? "—"}</td>
                     <td className={tdClass}>{f.mes}/{f.anio}</td>
                     <td className={tdClass}>{f.vencimiento}</td>

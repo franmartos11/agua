@@ -10,9 +10,10 @@ import {
   alternarMedidor,
 } from "@/lib/actions/lotes";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Badge, EstadoBadge } from "@/components/ui/badge";
 import { tableWrapClass, theadRowClass, thClass, tdClass, trClass, emptyTdClass } from "@/components/ui/table";
 import { EditLoteForm } from "./edit-form";
 import { ExtraForm } from "./extra-form";
@@ -26,7 +27,7 @@ export default async function LoteDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: lote }, { data: propietarios }, { data: extras }, { data: medidores }] =
+  const [{ data: lote }, { data: propietarios }, { data: extras }, { data: medidores }, { data: facturas }] =
     await Promise.all([
       supabase.from("lote").select("*").eq("id", id).single(),
       supabase.from("perfil").select("id, nombre").eq("rol", "owner").order("nombre"),
@@ -41,9 +42,20 @@ export default async function LoteDetailPage({
         .select("id, numero_serie, tipo, fecha_instalacion, activo")
         .eq("lote_id", id)
         .order("numero_serie"),
+      supabase
+        .from("factura")
+        .select("id, mes, anio, estado, monto_total, monto_pagado, vencimiento")
+        .eq("lote_id", id)
+        .order("anio", { ascending: false })
+        .order("mes", { ascending: false }),
     ]);
 
   if (!lote) notFound();
+
+  const saldoTotal = (facturas ?? []).reduce(
+    (acc, f) => (f.estado === "pagada" ? acc : acc + (Number(f.monto_total) - Number(f.monto_pagado))),
+    0,
+  );
 
   const updateAction = actualizarLote.bind(null, id);
   const deleteAction = eliminarLote.bind(null, id);
@@ -52,7 +64,29 @@ export default async function LoteDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={`Lote ${lote.numero}`} />
+      <PageHeader
+        title={`Lote ${lote.numero}`}
+        actions={
+          lote.propietario_id ? (
+            <Link href={`/admin/pagos?propietario=${lote.propietario_id}`}>
+              <Button size="sm">Cobrar</Button>
+            </Link>
+          ) : undefined
+        }
+      />
+
+      <div className="flex flex-wrap gap-4">
+        <Card className="flex-1 min-w-[10rem]">
+          <p className="text-xs font-medium text-muted-foreground">Saldo pendiente</p>
+          <p className={`mt-1 text-2xl font-semibold ${saldoTotal > 0 ? "text-danger" : "text-success"}`}>
+            ${saldoTotal.toFixed(2)}
+          </p>
+        </Card>
+        <Card className="flex-1 min-w-[10rem]">
+          <p className="text-xs font-medium text-muted-foreground">Facturas emitidas</p>
+          <p className="mt-1 text-2xl font-semibold text-foreground">{facturas?.length ?? 0}</p>
+        </Card>
+      </div>
 
       <Card>
         <h2 className="mb-3 text-sm font-semibold text-foreground">Datos</h2>
@@ -128,6 +162,50 @@ export default async function LoteDetailPage({
         </div>
         <MedidorForm action={addMedidorAction} />
       </Card>
+
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-foreground">Historial de facturas</h2>
+        <div className={tableWrapClass}>
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className={theadRowClass}>
+                <th className={thClass}>Período</th>
+                <th className={thClass}>Vencimiento</th>
+                <th className={thClass}>Total</th>
+                <th className={thClass}>Saldo</th>
+                <th className={thClass}>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {facturas?.map((f) => {
+                const saldo = Number(f.monto_total) - Number(f.monto_pagado);
+                return (
+                  <tr key={f.id} className={trClass}>
+                    <td className={tdClass}>
+                      <Link href={`/admin/facturas/${f.id}`} className="font-medium text-primary hover:underline">
+                        {f.mes}/{f.anio}
+                      </Link>
+                    </td>
+                    <td className={tdClass}>{f.vencimiento}</td>
+                    <td className={tdClass}>${Number(f.monto_total).toFixed(2)}</td>
+                    <td className={tdClass}>${saldo.toFixed(2)}</td>
+                    <td className={tdClass}>
+                      <EstadoBadge estado={f.estado} />
+                    </td>
+                  </tr>
+                );
+              })}
+              {facturas?.length === 0 && (
+                <tr>
+                  <td colSpan={5} className={emptyTdClass}>
+                    Todavía no tiene facturas emitidas.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <form action={deleteAction}>
         <ConfirmSubmitButton

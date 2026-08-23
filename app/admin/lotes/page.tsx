@@ -11,7 +11,7 @@ export default async function LotesPage() {
   const [{ data: lotes }, { data: propietarios }] = await Promise.all([
     supabase
       .from("lote")
-      .select("id, numero, estado, perfil:propietario_id(nombre)")
+      .select("id, numero, estado, propietario_id, perfil:propietario_id(nombre)")
       .order("numero"),
     supabase.from("perfil").select("id, nombre").eq("rol", "owner").order("nombre"),
   ]);
@@ -42,7 +42,13 @@ export default async function LotesPage() {
                   <EstadoBadge estado={l.estado} />
                 </td>
                 <td className={tdClass}>
-                  {(l.perfil as unknown as { nombre: string } | null)?.nombre ?? "—"}
+                  {l.propietario_id ? (
+                    <Link href={`/admin/propietarios/${l.propietario_id}`} className="text-primary hover:underline">
+                      {(l.perfil as unknown as { nombre: string } | null)?.nombre ?? "—"}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
                 </td>
               </tr>
             ))}

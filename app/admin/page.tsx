@@ -12,7 +12,7 @@ export default async function AdminDashboardPage() {
   const [{ data: lotes }, { count: totalPropietarios }, morosidad] = await Promise.all([
     supabase
       .from("lote")
-      .select("id, numero, estado, perfil:propietario_id(nombre)")
+      .select("id, numero, estado, propietario_id, perfil:propietario_id(nombre)")
       .order("numero"),
     supabase.from("perfil").select("id", { count: "exact", head: true }).eq("rol", "owner"),
     obtenerMorosidad(supabase),
@@ -75,9 +75,28 @@ export default async function AdminDashboardPage() {
             <tbody>
               {morosidad.map((d) => (
                 <tr key={d.propietarioId ?? "sin-propietario"} className={trClass}>
-                  <td className={tdClass}>{d.nombre}</td>
+                  <td className={tdClass}>
+                    {d.propietarioId ? (
+                      <Link href={`/admin/propietarios/${d.propietarioId}`} className="font-medium text-primary hover:underline">
+                        {d.nombre}
+                      </Link>
+                    ) : (
+                      d.nombre
+                    )}
+                  </td>
                   <td className={tdClass}>{d.telefono ?? "—"}</td>
-                  <td className={tdClass}>{d.lotesNumeros.join(", ") || "—"}</td>
+                  <td className={tdClass}>
+                    {d.loteIds.length > 0
+                      ? d.loteIds.map((loteId, i) => (
+                          <span key={loteId}>
+                            {i > 0 && ", "}
+                            <Link href={`/admin/lotes/${loteId}`} className="text-primary hover:underline">
+                              {d.lotesNumeros[i]}
+                            </Link>
+                          </span>
+                        ))
+                      : "—"}
+                  </td>
                   <td className={tdClass}>{d.facturasImpagas}</td>
                   <td className={`${tdClass} font-medium text-danger`}>${d.saldo.toFixed(2)}</td>
                   <td className={tdClass}>
@@ -133,7 +152,15 @@ export default async function AdminDashboardPage() {
                         {l.numero}
                       </Link>
                     </td>
-                    <td className={tdClass}>{propietario?.nombre ?? "Sin propietario"}</td>
+                    <td className={tdClass}>
+                      {l.propietario_id ? (
+                        <Link href={`/admin/propietarios/${l.propietario_id}`} className="text-primary hover:underline">
+                          {propietario?.nombre}
+                        </Link>
+                      ) : (
+                        "Sin propietario"
+                      )}
+                    </td>
                     <td className={tdClass}>
                       <EstadoBadge estado={l.estado} />
                     </td>
