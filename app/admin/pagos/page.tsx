@@ -4,7 +4,7 @@ import { revisarVencimientos } from "@/lib/actions/pagos";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageHeader } from "@/components/ui/page-header";
 import { EstadoBadge } from "@/components/ui/badge";
-import { tableWrapClass, theadRowClass, thClass, tdClass, trClass, emptyTdClass } from "@/components/ui/table";
+import { tableWrapClass, theadRowClass, thClass, tdClass, trClass } from "@/components/ui/table";
 
 export default async function PagosPage({
   searchParams,
@@ -52,50 +52,57 @@ export default async function PagosPage({
         }
       />
 
-      <div className={tableWrapClass}>
-        <table className="w-full max-w-4xl text-left text-sm">
-          <thead>
-            <tr className={theadRowClass}>
-              <th className={thClass}>Lote</th>
-              <th className={thClass}>Propietario</th>
-              <th className={thClass}>Teléfono</th>
-              <th className={thClass}>Período</th>
-              <th className={thClass}>Vencimiento</th>
-              <th className={thClass}>Saldo</th>
-              <th className={thClass}>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtradas.map((f) => {
-              const saldo = Number(f.monto_total) - Number(f.monto_pagado);
-              return (
-                <tr key={f.id} className={trClass}>
-                  <td className={tdClass}>
-                    <Link href={`/admin/facturas/${f.id}`} className="font-medium text-primary hover:underline">
-                      {f.lote?.numero}
-                    </Link>
-                  </td>
-                  <td className={tdClass}>{f.lote?.perfil?.nombre ?? "—"}</td>
-                  <td className={tdClass}>{f.lote?.perfil?.telefono ?? "—"}</td>
-                  <td className={tdClass}>{f.mes}/{f.anio}</td>
-                  <td className={tdClass}>{f.vencimiento}</td>
-                  <td className={tdClass}>${saldo.toFixed(2)}</td>
-                  <td className={tdClass}>
-                    <EstadoBadge estado={f.estado} />
-                  </td>
-                </tr>
-              );
-            })}
-            {filtradas.length === 0 && (
-              <tr>
-                <td colSpan={7} className={emptyTdClass}>
-                  No hay facturas pendientes de cobro.
-                </td>
+      {filtradas.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-success/30 bg-success-soft p-10 text-center">
+          <span className="text-3xl">✓</span>
+          <div>
+            <p className="font-semibold text-success">
+              {propietario ? "Este propietario está al día" : "No hay facturas pendientes de cobro"}
+            </p>
+            <p className="mt-1 text-sm text-success/70">
+              Todas las facturas {propietario ? "de este propietario " : ""}están pagadas.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className={tableWrapClass}>
+          <table className="w-full max-w-4xl text-left text-sm">
+            <thead>
+              <tr className={theadRowClass}>
+                <th className={thClass}>Lote</th>
+                <th className={thClass}>Propietario</th>
+                <th className={thClass}>Teléfono</th>
+                <th className={thClass}>Período</th>
+                <th className={thClass}>Vencimiento</th>
+                <th className={thClass}>Saldo</th>
+                <th className={thClass}>Estado</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filtradas.map((f) => {
+                const saldo = Number(f.monto_total) - Number(f.monto_pagado);
+                return (
+                  <tr key={f.id} className={trClass}>
+                    <td className={tdClass}>
+                      <Link href={`/admin/facturas/${f.id}`} className="font-medium text-primary hover:underline">
+                        {f.lote?.numero}
+                      </Link>
+                    </td>
+                    <td className={tdClass}>{f.lote?.perfil?.nombre ?? "—"}</td>
+                    <td className={tdClass}>{f.lote?.perfil?.telefono ?? "—"}</td>
+                    <td className={tdClass}>{f.mes}/{f.anio}</td>
+                    <td className={tdClass}>{f.vencimiento}</td>
+                    <td className={tdClass}>${saldo.toFixed(2)}</td>
+                    <td className={tdClass}>
+                      <EstadoBadge estado={f.estado} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -33,6 +33,31 @@ export default async function AdminDashboardPage() {
         <StatCard label="Propietarios registrados" value={totalPropietarios ?? 0} />
       </div>
 
+      {(lotes?.length ?? 0) > 0 && (
+        <div>
+          <div className="mb-1.5 flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <span>Salud de cobranza</span>
+            <span>
+              {lotesAlDia} al día · {lotesConDeuda} con deuda
+            </span>
+          </div>
+          <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+            {lotesAlDia > 0 && (
+              <div
+                className="h-full bg-success"
+                style={{ width: `${(lotesAlDia / (lotes!.length)) * 100}%` }}
+              />
+            )}
+            {lotesConDeuda > 0 && (
+              <div
+                className="h-full bg-danger"
+                style={{ width: `${(lotesConDeuda / (lotes!.length)) * 100}%` }}
+              />
+            )}
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="mb-2 text-sm font-semibold text-foreground">Quién debe</h2>
         <div className={tableWrapClass}>

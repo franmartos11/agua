@@ -13,6 +13,35 @@ export type DetalleFactura = {
   recargo_mora?: number;
 };
 
+const TRAMO_SHADES = ["bg-primary/30", "bg-primary/55", "bg-primary/80", "bg-primary"];
+
+function TramosGauge({ tramos, consumoTotal }: { tramos: Tramo[]; consumoTotal: number }) {
+  if (tramos.length === 0 || consumoTotal <= 0) return null;
+
+  return (
+    <div className="mb-3">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
+        {tramos.map((t, i) => (
+          <div
+            key={i}
+            title={`${t.desde_m3}–${t.hasta_m3 ?? "∞"} m³: ${t.m3} m³ a $${t.precio_m3}/m³`}
+            className={`h-full ${TRAMO_SHADES[Math.min(i, TRAMO_SHADES.length - 1)]} ${i > 0 ? "border-l border-card" : ""}`}
+            style={{ width: `${(t.m3 / consumoTotal) * 100}%` }}
+          />
+        ))}
+      </div>
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
+        {tramos.map((t, i) => (
+          <span key={i} className="flex items-center gap-1 text-xs text-muted-foreground">
+            <span className={`inline-block h-2 w-2 rounded-full ${TRAMO_SHADES[Math.min(i, TRAMO_SHADES.length - 1)]}`} />
+            {t.desde_m3}–{t.hasta_m3 ?? "∞"} m³
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function FacturaDetalle({ detalle }: { detalle: DetalleFactura }) {
   return (
     <div className="flex flex-col gap-1 text-sm">
@@ -20,6 +49,9 @@ export function FacturaDetalle({ detalle }: { detalle: DetalleFactura }) {
         <p className="mb-1 rounded-lg bg-warning-soft px-3 py-2 text-warning">
           Sin lectura anterior disponible: el consumo de algún medidor se tomó como 0. Revisar.
         </p>
+      )}
+      {detalle.tramos_aplicados && detalle.tramos_aplicados.length > 0 && (
+        <TramosGauge tramos={detalle.tramos_aplicados} consumoTotal={detalle.consumo_m3 ?? 0} />
       )}
       {detalle.tramos_aplicados?.map((t, i) => (
         <p key={i} className="flex justify-between text-muted-foreground">

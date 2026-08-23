@@ -2,10 +2,16 @@ import { createClient } from "@/lib/supabase/server";
 import { obtenerMorosidad } from "@/lib/deuda";
 import { ExportCsvButton } from "@/components/export-csv-button";
 import { PrintButton } from "@/components/print-button";
+import { RecaudacionChart } from "@/components/recaudacion-chart";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { EstadoBadge } from "@/components/ui/badge";
 import { tableWrapClass, theadRowClass, thClass, tdClass, trClass, emptyTdClass } from "@/components/ui/table";
+
+const MESES_ABR = [
+  "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+  "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+];
 
 export default async function ReportesPage() {
   const supabase = await createClient();
@@ -28,13 +34,23 @@ export default async function ReportesPage() {
 
   // Recaudación por período
   const recaudacionPorPeriodo = new Map<string, number>();
+  const recaudacionPorPeriodoOrdenada = new Map<string, { mes: number; anio: number; monto: number }>();
   let recaudacionTotal = 0;
   for (const p of pagos ?? []) {
     const periodo = p.factura as unknown as { mes: number; anio: number } | null;
     const clave = periodo ? `${periodo.mes}/${periodo.anio}` : "sin período";
     recaudacionPorPeriodo.set(clave, (recaudacionPorPeriodo.get(clave) ?? 0) + Number(p.monto));
+    if (periodo) {
+      const acumulado = recaudacionPorPeriodoOrdenada.get(clave)?.monto ?? 0;
+      recaudacionPorPeriodoOrdenada.set(clave, { mes: periodo.mes, anio: periodo.anio, monto: acumulado + Number(p.monto) });
+    }
     recaudacionTotal += Number(p.monto);
   }
+
+  const recaudacionChartData = [...recaudacionPorPeriodoOrdenada.values()]
+    .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
+    .slice(-6)
+    .map((d) => ({ periodo: `${MESES_ABR[d.mes - 1]} ${d.anio}`, monto: d.monto }));
 
   const filasConsumoCsv = filas.map((f) => ({
     lote: f.lote?.numero ?? "",
@@ -130,6 +146,7 @@ export default async function ReportesPage() {
           <p className="text-sm text-muted-foreground">Total histórico</p>
           <p className="text-2xl font-semibold text-foreground">${recaudacionTotal.toFixed(2)}</p>
         </Card>
+        <RecaudacionChart datos={recaudacionChartData} />
         <div className={tableWrapClass}>
           <table className="w-full max-w-sm text-left text-sm">
             <thead>

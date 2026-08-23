@@ -4,11 +4,6 @@ import { signOut } from "@/lib/actions/auth";
 import { Logo } from "@/components/ui/logo";
 import { NavTabs } from "@/components/ui/nav-tabs";
 
-const NAV_LINKS = [
-  { href: "/propietario", label: "Inicio" },
-  { href: "/propietario/facturas", label: "Facturas" },
-];
-
 export default async function PropietarioLayout({
   children,
 }: {
@@ -21,13 +16,20 @@ export default async function PropietarioLayout({
 
   if (!user) redirect("/login");
 
-  const { data: perfil } = await supabase
-    .from("perfil")
-    .select("rol, nombre")
-    .eq("id", user.id)
-    .single();
+  const [{ data: perfil }, { count: pendientesCount }] = await Promise.all([
+    supabase.from("perfil").select("rol, nombre").eq("id", user.id).single(),
+    supabase
+      .from("factura")
+      .select("id", { count: "exact", head: true })
+      .in("estado", ["pendiente", "parcial", "vencida"]),
+  ]);
 
   if (perfil?.rol === "admin") redirect("/admin");
+
+  const NAV_LINKS = [
+    { href: "/propietario", label: "Inicio" },
+    { href: "/propietario/facturas", label: "Facturas", badge: pendientesCount ?? 0 },
+  ];
 
   return (
     <div className="min-h-screen">
