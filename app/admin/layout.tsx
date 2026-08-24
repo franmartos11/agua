@@ -7,6 +7,7 @@ import { NavTabs } from "@/components/ui/nav-tabs";
 
 const NAV_LINKS = [
   { href: "/admin", label: "Inicio" },
+  { href: "/admin/plano", label: "Plano" },
   { href: "/admin/propietarios", label: "Propietarios" },
   { href: "/admin/lotes", label: "Lotes" },
   { href: "/admin/lecturas", label: "Lecturas" },

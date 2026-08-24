@@ -128,6 +128,37 @@ export async function agregarMedidor(
   return "ok";
 }
 
+export async function guardarPoligono(
+  loteId: string,
+  puntos: { x: number; y: number }[],
+) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("lote")
+    .update({ poligono: puntos })
+    .eq("id", loteId);
+
+  if (error) {
+    throw new Error(`No se pudo guardar el polígono: ${error.message}`);
+  }
+
+  revalidatePath("/admin/plano");
+}
+
+export async function borrarPoligono(loteId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("lote")
+    .update({ poligono: null })
+    .eq("id", loteId);
+
+  if (error) {
+    throw new Error(`No se pudo borrar: ${error.message}`);
+  }
+
+  revalidatePath("/admin/plano");
+}
+
 export async function alternarMedidor(id: string, loteId: string, activo: boolean) {
   const supabase = await createClient();
   const { error } = await supabase
