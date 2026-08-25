@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 import { generarFacturas, cerrarPeriodo } from "@/lib/actions/periodos";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { PageHeader } from "@/components/ui/page-header";
+import { Card } from "@/components/ui/card";
 import { EstadoBadge } from "@/components/ui/badge";
 import { tableWrapClass, theadRowClass, thClass, tdClass, trClass, emptyTdClass } from "@/components/ui/table";
+import { BoletaEpasForm } from "./boleta-epas-form";
 
 export default async function PeriodoDetailPage({
   params,
@@ -15,11 +17,26 @@ export default async function PeriodoDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: periodo } = await supabase
+  const { data: periodo, error: errorPeriodo } = await supabase
     .from("periodo_facturacion")
-    .select("id, mes, anio, fecha_vencimiento, estado")
+    .select("id, mes, anio, fecha_vencimiento, estado, epas_m3, epas_monto")
     .eq("id", id)
     .single();
+
+  if (errorPeriodo?.message.includes("epas_m3")) {
+    return (
+      <div className="rounded-xl border border-danger/30 bg-danger-soft p-5 text-sm text-danger">
+        <p className="font-semibold">Falta aplicar una migración en la base de datos.</p>
+        <p className="mt-1 text-danger/80">
+          Corré esto una vez en el SQL Editor de Supabase y recargá esta página:
+        </p>
+        <pre className="mt-2 overflow-x-auto rounded-lg bg-card px-3 py-2 text-xs text-foreground">
+          alter table periodo_facturacion add column epas_m3 numeric;{"\n"}
+          alter table periodo_facturacion add column epas_monto numeric;
+        </pre>
+      </div>
+    );
+  }
 
   if (!periodo) notFound();
 
@@ -61,6 +78,22 @@ export default async function PeriodoDetailPage({
           )
         }
       />
+
+      {abierto && (
+        <Card>
+          <h2 className="mb-1 text-sm font-semibold text-foreground">Boleta EPAS del complejo</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Cargá los m³ y el monto de la factura del macromedidor para repartir el consumo entre los lotes a
+            precio único (regla de tres simple), en vez de usar los tramos de la tarifa. Dejá los dos campos
+            vacíos para volver a usar tramos.
+          </p>
+          <BoletaEpasForm
+            periodoId={id}
+            epasM3={periodo.epas_m3}
+            epasMonto={periodo.epas_monto}
+          />
+        </Card>
+      )}
 
       <div className={tableWrapClass}>
         <table className="w-full max-w-2xl text-left text-sm">

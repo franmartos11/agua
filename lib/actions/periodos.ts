@@ -33,7 +33,7 @@ export async function generarFacturas(periodoId: string) {
 
   const { data: periodo } = await supabase
     .from("periodo_facturacion")
-    .select("id, mes, anio, fecha_vencimiento, estado")
+    .select("id, mes, anio, fecha_vencimiento, estado, epas_m3, epas_monto")
     .eq("id", periodoId)
     .single();
 
@@ -112,6 +112,7 @@ export async function generarFacturas(periodoId: string) {
       tarifa,
       tramos: tramos ?? [],
       extrasTarifa: extrasTarifa ?? [],
+      epas: periodo.epas_m3 && periodo.epas_monto ? { m3: Number(periodo.epas_m3), monto: Number(periodo.epas_monto) } : null,
     });
 
     return {
@@ -134,6 +135,40 @@ export async function generarFacturas(periodoId: string) {
 
   revalidatePath(`/admin/periodos/${periodoId}`);
   revalidatePath("/admin/periodos");
+}
+
+/**
+ * Carga (o borra, si se dejan los campos vacíos) la boleta de EPAS del
+ * macromedidor para este período: sus m³ y el monto pagado. Se usa para
+ * repartir el consumo entre lotes a precio único en vez de por tramos.
+ */
+export async function guardarBoletaEpas(
+  periodoId: string,
+  _prevState: string | null,
+  formData: FormData,
+) {
+  const m3Raw = formData.get("epas_m3") as string;
+  const montoRaw = formData.get("epas_monto") as string;
+
+  const epas_m3 = m3Raw ? Number(m3Raw) : null;
+  const epas_monto = montoRaw ? Number(montoRaw) : null;
+
+  if ((epas_m3 && !epas_monto) || (!epas_m3 && epas_monto)) {
+    return "Cargá los dos valores (m³ y monto), o dejá los dos vacíos para volver a los tramos.";
+  }
+  if (epas_m3 !== null && epas_m3 <= 0) return "Los m³ deben ser mayores a cero.";
+  if (epas_monto !== null && epas_monto <= 0) return "El monto debe ser mayor a cero.";
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("periodo_facturacion")
+    .update({ epas_m3, epas_monto })
+    .eq("id", periodoId);
+
+  if (error) return `No se pudo guardar: ${error.message}`;
+
+  revalidatePath(`/admin/periodos/${periodoId}`);
+  return "ok";
 }
 
 export async function cerrarPeriodo(periodoId: string) {

@@ -6,6 +6,8 @@ export type Tarifa = {
   recargo_mora_pct: number;
 };
 
+export type BoletaEpas = { m3: number; monto: number };
+
 export type DetalleCalculo = {
   consumo_m3: number;
   tramos_aplicados: { desde_m3: number; hasta_m3: number | null; m3: number; precio_m3: number; subtotal: number }[];
@@ -14,7 +16,26 @@ export type DetalleCalculo = {
   extras: { tipo: string; monto: number }[];
   monto_extras: number;
   monto_total: number;
+  /** Presente cuando el consumo se cobró a precio único, repartiendo la boleta EPAS del complejo (regla de tres simple) en vez de por tramos. */
+  epas?: { m3_complejo: number; monto_complejo: number; precio_m3: number };
 };
+
+/**
+ * Reparte la boleta EPAS del complejo entre los lotes por regla de tres simple:
+ * precio_m3 = monto pagado a EPAS / m³ totales del macromedidor. Cada lote paga
+ * su propio consumo a ese precio único (no hay tramos progresivos acá).
+ */
+export function calcularConsumoProporcional(consumoM3: number, epas: BoletaEpas) {
+  const precioM3 = epas.m3 > 0 ? epas.monto / epas.m3 : 0;
+  const subtotal = Math.round(consumoM3 * precioM3 * 100) / 100;
+  return {
+    montoConsumo: subtotal,
+    tramosAplicados: [
+      { desde_m3: 0, hasta_m3: null, m3: consumoM3, precio_m3: Math.round(precioM3 * 100) / 100, subtotal },
+    ] as DetalleCalculo["tramos_aplicados"],
+    precioM3: Math.round(precioM3 * 100) / 100,
+  };
+}
 
 /** Reparte el consumo entre los tramos progresivos y devuelve el monto por consumo. */
 export function calcularConsumo(consumoM3: number, tramos: Tramo[]) {
@@ -50,6 +71,7 @@ export function calcularFactura({
   tarifa,
   tramos,
   extrasTarifa,
+  epas,
 }: {
   consumoM3: number;
   estadoLote: string;
@@ -57,8 +79,13 @@ export function calcularFactura({
   tarifa: Tarifa;
   tramos: Tramo[];
   extrasTarifa: ExtraTarifa[];
+  /** Si viene con m3 > 0, el consumo se cobra repartiendo la boleta EPAS del complejo en vez de usar tramos. */
+  epas?: BoletaEpas | null;
 }): DetalleCalculo {
-  const { montoConsumo, tramosAplicados } = calcularConsumo(consumoM3, tramos);
+  const usaEpas = !!epas && epas.m3 > 0;
+  const { montoConsumo, tramosAplicados, precioM3 } = usaEpas
+    ? calcularConsumoProporcional(consumoM3, epas!)
+    : { ...calcularConsumo(consumoM3, tramos), precioM3: undefined };
 
   const cargoFijo =
     estadoLote === "ocupado" ? tarifa.cargo_fijo : (tarifa.cargo_fijo_vacio ?? 0);
@@ -80,6 +107,9 @@ export function calcularFactura({
     extras,
     monto_extras: montoExtras,
     monto_total: montoTotal,
+    ...(usaEpas && precioM3 !== undefined
+      ? { epas: { m3_complejo: epas!.m3, monto_complejo: epas!.monto, precio_m3: precioM3 } }
+      : {}),
   };
 }
 

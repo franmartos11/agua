@@ -11,7 +11,13 @@ export type DetalleFactura = {
   monto_total?: number;
   sin_lectura_base?: boolean;
   recargo_mora?: number;
+  /** Presente cuando el consumo se cobró repartiendo la boleta EPAS del complejo, no por tramos. */
+  epas?: { m3_complejo: number; monto_complejo: number; precio_m3: number };
 };
+
+function formatNum(n: number) {
+  return n.toLocaleString("es-AR", { maximumFractionDigits: 2 });
+}
 
 const TRAMO_SHADES = ["bg-primary/30", "bg-primary/55", "bg-primary/80", "bg-primary"];
 
@@ -50,17 +56,28 @@ export function FacturaDetalle({ detalle }: { detalle: DetalleFactura }) {
           Sin lectura anterior disponible: el consumo de algún medidor se tomó como 0. Revisar.
         </p>
       )}
-      {detalle.tramos_aplicados && detalle.tramos_aplicados.length > 0 && (
-        <TramosGauge tramos={detalle.tramos_aplicados} consumoTotal={detalle.consumo_m3 ?? 0} />
-      )}
-      {detalle.tramos_aplicados?.map((t, i) => (
-        <p key={i} className="flex justify-between text-muted-foreground">
-          <span>
-            Consumo {t.desde_m3}–{t.hasta_m3 ?? "∞"} m³: {t.m3} m³ × ${t.precio_m3}
-          </span>
-          <span>${t.subtotal.toFixed(2)}</span>
+      {detalle.epas ? (
+        <p className="mb-2 rounded-lg bg-primary-soft px-3 py-2 text-xs text-primary">
+          El complejo consumió {formatNum(detalle.epas.m3_complejo)} m³ y la boleta de EPAS salió $
+          {formatNum(detalle.epas.monto_complejo)} → ${formatNum(detalle.epas.precio_m3)} el m³. Vos consumiste{" "}
+          {formatNum(detalle.consumo_m3 ?? 0)} m³, por eso debés $
+          {formatNum(detalle.monto_consumo ?? 0)} de consumo.
         </p>
-      ))}
+      ) : (
+        <>
+          {detalle.tramos_aplicados && detalle.tramos_aplicados.length > 0 && (
+            <TramosGauge tramos={detalle.tramos_aplicados} consumoTotal={detalle.consumo_m3 ?? 0} />
+          )}
+          {detalle.tramos_aplicados?.map((t, i) => (
+            <p key={i} className="flex justify-between text-muted-foreground">
+              <span>
+                Consumo {t.desde_m3}–{t.hasta_m3 ?? "∞"} m³: {t.m3} m³ × ${t.precio_m3}
+              </span>
+              <span>${t.subtotal.toFixed(2)}</span>
+            </p>
+          ))}
+        </>
+      )}
       <p className="flex justify-between font-medium text-foreground">
         <span>Subtotal consumo ({detalle.consumo_m3} m³)</span>
         <span>${detalle.monto_consumo?.toFixed(2)}</span>
