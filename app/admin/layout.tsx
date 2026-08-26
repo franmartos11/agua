@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/admin/periodos", label: "Períodos" },
   { href: "/admin/pagos", label: "Cobranzas" },
   { href: "/admin/reportes", label: "Reportes" },
+  { href: "/admin/configuracion", label: "Configuración" },
 ];
 
 export default async function AdminLayout({

@@ -70,22 +70,15 @@ export async function eliminarLote(id: string) {
   revalidatePath("/admin/lotes");
 }
 
-export async function agregarExtra(
-  loteId: string,
-  _prevState: string | null,
-  formData: FormData,
-) {
-  const tipo = formData.get("tipo") as string;
-
+export async function agregarPileta(loteId: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("extra").insert({ lote_id: loteId, tipo });
+  const { error } = await supabase.from("extra").insert({ lote_id: loteId, tipo: "Pileta" });
 
   if (error) {
-    return `No se pudo agregar: ${error.message}`;
+    throw new Error(`No se pudo agregar: ${error.message}`);
   }
 
   revalidatePath(`/admin/lotes/${loteId}`);
-  return "ok";
 }
 
 export async function quitarExtra(id: string, loteId: string) {

@@ -3,7 +3,6 @@ export type ExtraTarifa = { tipo: string; monto: number };
 export type Tarifa = {
   cargo_fijo: number;
   cargo_fijo_vacio: number | null;
-  recargo_mora_pct: number;
 };
 
 export type BoletaEpas = { m3: number; monto: number };
@@ -113,7 +112,21 @@ export function calcularFactura({
   };
 }
 
-/** Recargo por mora: se aplica una sola vez sobre el saldo adeudado, no acumulativo. */
-export function calcularRecargoMora(saldo: number, recargoPct: number) {
-  return Math.round(saldo * (recargoPct / 100) * 100) / 100;
+export type ReglaMora = { dias_desde: number; recargo_pct: number };
+
+/**
+ * Recargo por mora según tramos de días de atraso (0 días = vence hoy, no es
+ * mora todavía). Se calcula siempre sobre el monto base de la factura (sin
+ * mora previa) para que no se acumule recargo sobre recargo al recalcular
+ * día a día — cada corrida reemplaza el recargo anterior por el que
+ * corresponde al tramo vigente hoy.
+ */
+export function calcularRecargoMoraTramos(base: number, diasAtraso: number, reglas: ReglaMora[]) {
+  const tramoAplicable = [...reglas]
+    .filter((r) => r.dias_desde <= diasAtraso)
+    .sort((a, b) => b.dias_desde - a.dias_desde)[0];
+
+  const pct = tramoAplicable?.recargo_pct ?? 0;
+  const recargo = Math.round(base * (pct / 100) * 100) / 100;
+  return { recargo, pct };
 }

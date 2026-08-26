@@ -63,17 +63,6 @@ export function TarifaForm() {
               className={`w-40 ${inputClass}`}
             />
           </Field>
-          <Field label="Recargo por mora (%)" htmlFor="recargo_mora_pct">
-            <input
-              id="recargo_mora_pct"
-              name="recargo_mora_pct"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue="0"
-              className={`w-28 ${inputClass}`}
-            />
-          </Field>
         </div>
 
         <div>

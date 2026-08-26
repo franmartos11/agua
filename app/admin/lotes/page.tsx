@@ -3,23 +3,29 @@ import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { EstadoBadge } from "@/components/ui/badge";
 import { tableWrapClass, theadRowClass, thClass, tdClass, trClass, emptyTdClass } from "@/components/ui/table";
-import { LoteForm } from "./lote-form";
 
 export default async function LotesPage() {
   const supabase = await createClient();
 
-  const [{ data: lotes }, { data: propietarios }] = await Promise.all([
-    supabase
-      .from("lote")
-      .select("id, numero, estado, propietario_id, perfil:propietario_id(nombre)")
-      .order("numero"),
-    supabase.from("perfil").select("id, nombre").eq("rol", "owner").order("nombre"),
-  ]);
+  const { data: lotes } = await supabase
+    .from("lote")
+    .select("id, numero, estado, propietario_id, perfil:propietario_id(nombre)")
+    .order("numero");
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Lotes" />
-      <LoteForm propietarios={propietarios ?? []} />
+      <PageHeader
+        title="Lotes"
+        subtitle={
+          <>
+            Para dar de alta o editar un lote, andá a{" "}
+            <Link href="/admin/configuracion" className="text-primary hover:underline">
+              Configuración
+            </Link>
+            .
+          </>
+        }
+      />
 
       <div className={tableWrapClass}>
         <table className="w-full text-left text-sm">

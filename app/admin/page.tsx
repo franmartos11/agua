@@ -69,7 +69,6 @@ export default async function AdminDashboardPage() {
                 <th className={thClass}>Lotes</th>
                 <th className={thClass}>Facturas impagas</th>
                 <th className={thClass}>Saldo</th>
-                <th className={thClass}></th>
               </tr>
             </thead>
             <tbody>
@@ -99,24 +98,11 @@ export default async function AdminDashboardPage() {
                   </td>
                   <td className={tdClass}>{d.facturasImpagas}</td>
                   <td className={`${tdClass} font-medium text-danger`}>${d.saldo.toFixed(2)}</td>
-                  <td className={tdClass}>
-                    {d.propietarioId ? (
-                      <Link href={`/admin/pagos?propietario=${d.propietarioId}`} className="font-medium text-primary hover:underline">
-                        Cobrar
-                      </Link>
-                    ) : (
-                      d.loteIds[0] && (
-                        <Link href={`/admin/lotes/${d.loteIds[0]}`} className="font-medium text-primary hover:underline">
-                          Ver lote
-                        </Link>
-                      )
-                    )}
-                  </td>
                 </tr>
               ))}
               {morosidad.length === 0 && (
                 <tr>
-                  <td colSpan={6} className={emptyTdClass}>
+                  <td colSpan={5} className={emptyTdClass}>
                     Nadie tiene deuda pendiente 🎉
                   </td>
                 </tr>

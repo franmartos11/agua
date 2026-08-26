@@ -4,8 +4,14 @@ import { NextResponse, type NextRequest } from "next/server";
 const ADMIN_PREFIX = "/admin";
 const OWNER_PREFIX = "/propietario";
 const PUBLIC_PATHS = ["/login", "/auth"];
+// Autenticadas con CRON_SECRET en el header Authorization, no con sesión de usuario.
+const CRON_PREFIX = "/api/cron";
 
 export async function updateSession(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith(CRON_PREFIX)) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

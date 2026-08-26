@@ -2,21 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
-  actualizarLote,
-  eliminarLote,
-  agregarExtra,
+  agregarPileta,
   quitarExtra,
   agregarMedidor,
   alternarMedidor,
 } from "@/lib/actions/lotes";
-import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
 import { Badge, EstadoBadge } from "@/components/ui/badge";
 import { tableWrapClass, theadRowClass, thClass, tdClass, trClass, emptyTdClass } from "@/components/ui/table";
-import { EditLoteForm } from "./edit-form";
-import { ExtraForm } from "./extra-form";
 import { MedidorForm } from "./medidor-form";
 
 export default async function LoteDetailPage({
@@ -27,10 +22,13 @@ export default async function LoteDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: lote }, { data: propietarios }, { data: extras }, { data: medidores }, { data: facturas }] =
+  const [{ data: lote }, { data: extras }, { data: medidores }, { data: facturas }] =
     await Promise.all([
-      supabase.from("lote").select("*").eq("id", id).single(),
-      supabase.from("perfil").select("id, nombre").eq("rol", "owner").order("nombre"),
+      supabase
+        .from("lote")
+        .select("*, perfil:propietario_id(nombre)")
+        .eq("id", id)
+        .single(),
       supabase
         .from("extra")
         .select("id, tipo, vigente_desde, vigente_hasta")
@@ -57,9 +55,8 @@ export default async function LoteDetailPage({
     0,
   );
 
-  const updateAction = actualizarLote.bind(null, id);
-  const deleteAction = eliminarLote.bind(null, id);
-  const addExtraAction = agregarExtra.bind(null, id);
+  const propietario = lote.perfil as unknown as { nombre: string } | null;
+  const tienePileta = extras?.some((e) => e.tipo.toLowerCase() === "pileta");
   const addMedidorAction = agregarMedidor.bind(null, id);
 
   return (
@@ -89,13 +86,37 @@ export default async function LoteDetailPage({
       </div>
 
       <Card>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Datos</h2>
-        <EditLoteForm action={updateAction} lote={lote} propietarios={propietarios ?? []} />
+        <div className="flex items-start justify-between gap-4">
+          <h2 className="text-sm font-semibold text-foreground">Datos</h2>
+          <Link href={`/admin/configuracion/lotes/${id}`} className="text-sm text-primary hover:underline">
+            Editar →
+          </Link>
+        </div>
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-xs text-muted-foreground">Dirección</dt>
+            <dd className="text-foreground">{lote.direccion ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Superficie</dt>
+            <dd className="text-foreground">{lote.superficie_m2 ? `${lote.superficie_m2} m²` : "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Estado</dt>
+            <dd>
+              <EstadoBadge estado={lote.estado} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted-foreground">Propietario</dt>
+            <dd className="text-foreground">{propietario?.nombre ?? "Sin asignar"}</dd>
+          </div>
+        </dl>
       </Card>
 
       <Card>
-        <h2 className="mb-3 text-sm font-semibold text-foreground">Extras (afectan el cobro)</h2>
-        <div className="mb-3 flex flex-wrap gap-2">
+        <h2 className="mb-3 text-sm font-semibold text-foreground">Pileta (único extra que afecta el cobro)</h2>
+        <div className="flex flex-wrap items-center gap-2">
           {extras?.map((e) => (
             <span
               key={e.id}
@@ -109,11 +130,14 @@ export default async function LoteDetailPage({
               </form>
             </span>
           ))}
-          {extras?.length === 0 && (
-            <span className="text-sm text-muted-foreground">Ninguno.</span>
+          {!tienePileta && (
+            <form action={agregarPileta.bind(null, id)}>
+              <Button type="submit" variant="secondary" size="sm">
+                + Agregar pileta
+              </Button>
+            </form>
           )}
         </div>
-        <ExtraForm action={addExtraAction} />
       </Card>
 
       <Card>
@@ -206,13 +230,6 @@ export default async function LoteDetailPage({
           </table>
         </div>
       </div>
-
-      <form action={deleteAction}>
-        <ConfirmSubmitButton
-          label="Eliminar lote"
-          confirmText={`¿Eliminar el lote ${lote.numero}? Se pierden sus extras y medidores asociados.`}
-        />
-      </form>
     </div>
   );
 }

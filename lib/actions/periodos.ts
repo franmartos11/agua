@@ -44,7 +44,7 @@ export async function generarFacturas(periodoId: string) {
 
   const { data: tarifa } = await supabase
     .from("tarifa")
-    .select("id, cargo_fijo, cargo_fijo_vacio, recargo_mora_pct")
+    .select("id, cargo_fijo, cargo_fijo_vacio")
     .lte("vigente_desde", periodo.fecha_vencimiento)
     .order("vigente_desde", { ascending: false })
     .limit(1)

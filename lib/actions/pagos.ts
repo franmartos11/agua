@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { calcularRecargoMora } from "@/lib/facturacion";
 
 /**
  * Registra un pago desde el portal del propietario.
@@ -142,45 +141,77 @@ export async function registrarPago(
 }
 
 /**
- * Recorre facturas pendientes/parciales vencidas y les aplica el recargo por
- * mora una sola vez (usa la tarifa vigente a la fecha de vencimiento de cada
- * una, la misma que se usó al generarla). Idempotente: una factura que ya
- * quedó en estado "vencida" no vuelve a recargarse en una corrida posterior.
+ * Aprueba un pago que el propietario declaró como hecho (transferencia o
+ * efectivo, sin confirmar todavía): recién ahora se refleja en el saldo de
+ * la factura.
  */
-export async function revisarVencimientos() {
+export async function confirmarPagoOwner(pagoId: string) {
   const supabase = await createClient();
-  const hoy = new Date().toISOString().slice(0, 10);
 
-  const { data: facturas } = await supabase
+  const { data: pago } = await supabase
+    .from("pago")
+    .select("id, factura_id, monto, estado")
+    .eq("id", pagoId)
+    .single();
+
+  if (!pago) throw new Error("Pago no encontrado.");
+  if (pago.estado !== "pendiente") throw new Error("Este pago ya fue procesado.");
+
+  const { data: factura } = await supabase
     .from("factura")
-    .select("id, vencimiento, monto_total, monto_pagado, detalle_calculo")
-    .in("estado", ["pendiente", "parcial"])
-    .lt("vencimiento", hoy);
+    .select("id, monto_total, monto_pagado")
+    .eq("id", pago.factura_id)
+    .single();
 
-  for (const f of facturas ?? []) {
-    const { data: tarifa } = await supabase
-      .from("tarifa")
-      .select("recargo_mora_pct")
-      .lte("vigente_desde", f.vencimiento)
-      .order("vigente_desde", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  if (!factura) throw new Error("Factura no encontrada.");
 
-    const saldo = Number(f.monto_total) - Number(f.monto_pagado);
-    const recargo = calcularRecargoMora(saldo, tarifa?.recargo_mora_pct ?? 0);
+  const nuevoMontoPagado = Number(factura.monto_pagado) + Number(pago.monto);
+  const nuevoEstado = nuevoMontoPagado >= Number(factura.monto_total) ? "pagada" : "parcial";
 
-    await supabase
-      .from("factura")
-      .update({
-        estado: "vencida",
-        monto_total: Number(f.monto_total) + recargo,
-        detalle_calculo: {
-          ...(f.detalle_calculo as object),
-          recargo_mora: recargo,
-        },
-      })
-      .eq("id", f.id);
-  }
+  const { error: errorFactura } = await supabase
+    .from("factura")
+    .update({ monto_pagado: nuevoMontoPagado, estado: nuevoEstado })
+    .eq("id", factura.id);
+
+  if (errorFactura) throw new Error(`No se pudo actualizar la factura: ${errorFactura.message}`);
+
+  const { error: errorPago } = await supabase
+    .from("pago")
+    .update({ estado: "confirmado" })
+    .eq("id", pagoId);
+
+  if (errorPago) throw new Error(`No se pudo confirmar el pago: ${errorPago.message}`);
 
   revalidatePath("/admin/pagos");
+  revalidatePath(`/admin/facturas/${factura.id}`);
+  revalidatePath("/propietario");
+  revalidatePath("/propietario/facturas");
 }
+
+/**
+ * Rechaza un pago declarado por el propietario (comprobante inválido, monto
+ * incorrecto, etc.): se elimina el reclamo sin tocar la factura, para que
+ * pueda volver a declararlo si corresponde.
+ */
+export async function rechazarPagoOwner(pagoId: string) {
+  const supabase = await createClient();
+
+  const { data: pago } = await supabase
+    .from("pago")
+    .select("id, factura_id, estado")
+    .eq("id", pagoId)
+    .single();
+
+  if (!pago) throw new Error("Pago no encontrado.");
+  if (pago.estado !== "pendiente") throw new Error("Este pago ya fue procesado.");
+
+  const { error } = await supabase.from("pago").delete().eq("id", pagoId);
+
+  if (error) throw new Error(`No se pudo rechazar: ${error.message}`);
+
+  revalidatePath("/admin/pagos");
+  revalidatePath(`/admin/facturas/${pago.factura_id}`);
+  revalidatePath("/propietario");
+  revalidatePath("/propietario/facturas");
+}
+

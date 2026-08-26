@@ -2,8 +2,10 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EstadoBadge } from "@/components/ui/badge";
 import { ConsumoChart } from "@/components/consumo-chart";
+import { PeriodoSelector } from "./periodo-selector";
 
 const MESES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -25,27 +27,48 @@ function formatFecha(d: string) {
   });
 }
 
-export default async function PropietarioDashboardPage() {
+export default async function PropietarioDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periodo?: string }>;
+}) {
+  const { periodo: periodoParam } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: lotes }, { data: facturas }] = await Promise.all([
     supabase.from("lote").select("id, numero, estado"),
     supabase
       .from("factura")
-      .select("id, mes, anio, estado, monto_total, monto_pagado, vencimiento, detalle_calculo")
+      .select("id, mes, anio, estado, monto_total, monto_pagado, consumo_m3, vencimiento, lote:lote_id(numero)")
       .order("vencimiento", { ascending: true }),
   ]);
 
   const todasLasFacturas = facturas ?? [];
 
-  const consumoReciente = [...todasLasFacturas]
-    .sort((a, b) => a.anio - b.anio || a.mes - b.mes)
-    .slice(-6)
-    .map((f) => ({
-      mes: f.mes,
-      anio: f.anio,
-      consumo_m3: Number((f.detalle_calculo as { consumo_m3?: number } | null)?.consumo_m3 ?? 0),
-    }));
+  const periodosMap = new Map<string, { mes: number; anio: number }>();
+  for (const f of todasLasFacturas) {
+    periodosMap.set(`${f.anio}-${f.mes}`, { mes: f.mes, anio: f.anio });
+  }
+  const periodos = [...periodosMap.values()].sort((a, b) => b.anio - a.anio || b.mes - a.mes);
+
+  const periodoSeleccionado =
+    periodos.find((p) => `${p.anio}-${String(p.mes).padStart(2, "0")}` === periodoParam) ?? periodos[0];
+
+  const facturasDelPeriodo = periodoSeleccionado
+    ? todasLasFacturas.filter((f) => f.mes === periodoSeleccionado.mes && f.anio === periodoSeleccionado.anio)
+    : [];
+  const totalAPagarPeriodo = facturasDelPeriodo.reduce((acc, f) => acc + Number(f.monto_total), 0);
+  const consumoTotalPeriodo = facturasDelPeriodo.reduce((acc, f) => acc + Number(f.consumo_m3 ?? 0), 0);
+
+  const consumoPorPeriodo = new Map<string, number>();
+  for (const f of todasLasFacturas) {
+    const key = `${f.anio}-${f.mes}`;
+    consumoPorPeriodo.set(key, (consumoPorPeriodo.get(key) ?? 0) + Number(f.consumo_m3 ?? 0));
+  }
+  const consumoReciente = periodos
+    .slice(0, 6)
+    .reverse()
+    .map((p) => ({ mes: p.mes, anio: p.anio, consumo_m3: consumoPorPeriodo.get(`${p.anio}-${p.mes}`) ?? 0 }));
   const pendientes = todasLasFacturas.filter((f) => f.estado !== "pagada");
   const vencidas = pendientes.filter((f) => f.estado === "vencida");
 
@@ -62,6 +85,61 @@ export default async function PropietarioDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Inicio" />
+
+      {/* Tu boleta por mes */}
+      {periodos.length > 0 && (
+        <div>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-foreground">Tu boleta por mes</h2>
+            <PeriodoSelector
+              periodos={periodos}
+              selected={`${periodoSeleccionado.anio}-${String(periodoSeleccionado.mes).padStart(2, "0")}`}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <p className="text-xs font-medium text-muted-foreground">
+                Total a pagar · {MESES[periodoSeleccionado.mes - 1]} {periodoSeleccionado.anio}
+              </p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{formatPeso(totalAPagarPeriodo)}</p>
+            </Card>
+            <Card>
+              <p className="text-xs font-medium text-muted-foreground">Consumo total de agua</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{consumoTotalPeriodo} m³</p>
+            </Card>
+          </div>
+          {facturasDelPeriodo.length === 1 ? (
+            <Link
+              href={`/propietario/facturas/${facturasDelPeriodo[0].id}`}
+              className="mt-3 flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:shadow-sm hover:-translate-y-0.5 transition-all"
+            >
+              <span className="text-sm font-medium text-primary">Ver el detalle de esta boleta</span>
+              <EstadoBadge estado={facturasDelPeriodo[0].estado} />
+            </Link>
+          ) : (
+            facturasDelPeriodo.length > 1 && (
+              <div className="mt-3 flex flex-col gap-2">
+                {facturasDelPeriodo.map((f) => {
+                  const lote = f.lote as unknown as { numero: string } | null;
+                  return (
+                    <Link
+                      key={f.id}
+                      href={`/propietario/facturas/${f.id}`}
+                      className="flex items-center justify-between rounded-xl border border-border bg-card p-4 hover:shadow-sm hover:-translate-y-0.5 transition-all"
+                    >
+                      <span className="text-sm font-medium text-foreground">Lote {lote?.numero}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-bold text-foreground">{formatPeso(Number(f.monto_total))}</span>
+                        <EstadoBadge estado={f.estado} />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Banner de deuda */}
       {saldoTotal > 0 ? (

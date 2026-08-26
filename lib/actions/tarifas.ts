@@ -11,7 +11,6 @@ export async function crearTarifa(_prevState: string | null, formData: FormData)
   const cargo_fijo = Number(formData.get("cargo_fijo"));
   const cargoFijoVacioRaw = formData.get("cargo_fijo_vacio") as string;
   const cargo_fijo_vacio = cargoFijoVacioRaw ? Number(cargoFijoVacioRaw) : null;
-  const recargo_mora_pct = Number(formData.get("recargo_mora_pct") || 0);
 
   let tramos: TramoInput[];
   let extras: ExtraInput[];
@@ -30,7 +29,7 @@ export async function crearTarifa(_prevState: string | null, formData: FormData)
 
   const { data: tarifa, error } = await supabase
     .from("tarifa")
-    .insert({ vigente_desde, cargo_fijo, cargo_fijo_vacio, recargo_mora_pct })
+    .insert({ vigente_desde, cargo_fijo, cargo_fijo_vacio })
     .select("id")
     .single();
 

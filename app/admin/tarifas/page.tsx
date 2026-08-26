@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card } from "@/components/ui/card";
@@ -7,14 +8,23 @@ export default async function TarifasPage() {
   const supabase = await createClient();
   const { data: tarifas } = await supabase
     .from("tarifa")
-    .select("id, vigente_desde, cargo_fijo, cargo_fijo_vacio, recargo_mora_pct, tarifa_tramo(orden, desde_m3, hasta_m3, precio_m3), tarifa_extra(tipo, monto)")
+    .select("id, vigente_desde, cargo_fijo, cargo_fijo_vacio, tarifa_tramo(orden, desde_m3, hasta_m3, precio_m3), tarifa_extra(tipo, monto)")
     .order("vigente_desde", { ascending: false });
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Tarifas"
-        subtitle="Cada tarifa nueva reemplaza a la anterior desde su fecha de vigencia. Las tarifas viejas no se editan — así las facturas ya emitidas no cambian."
+        subtitle={
+          <>
+            Cada tarifa nueva reemplaza a la anterior desde su fecha de vigencia. Las tarifas viejas no se editan —
+            así las facturas ya emitidas no cambian. El recargo por mora se configura en{" "}
+            <Link href="/admin/configuracion" className="text-primary hover:underline">
+              Configuración
+            </Link>
+            .
+          </>
+        }
       />
 
       <TarifaForm />
@@ -24,8 +34,7 @@ export default async function TarifasPage() {
           <Card key={t.id} className="text-sm">
             <p className="font-medium text-foreground">Vigente desde {t.vigente_desde}</p>
             <p className="mt-1 text-muted-foreground">
-              Cargo fijo: ${t.cargo_fijo} · Vacío/construcción: {t.cargo_fijo_vacio ?? "no cobra"} · Mora:{" "}
-              {t.recargo_mora_pct}%
+              Cargo fijo: ${t.cargo_fijo} · Vacío/construcción: {t.cargo_fijo_vacio ?? "no cobra"}
             </p>
             <div className="mt-3">
               <p className="font-medium text-foreground">Tramos</p>
