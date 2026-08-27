@@ -44,3 +44,17 @@ const ESTADO_VARIANT: Record<string, Variant> = {
 export function EstadoBadge({ estado }: { estado: string }) {
   return <Badge variant={ESTADO_VARIANT[estado] ?? "neutral"}>{estado}</Badge>;
 }
+
+export type PagoEstado = "al-dia" | "con-deuda" | "sin-propietario";
+
+const PAGO_META: Record<PagoEstado, { label: string; variant: Variant }> = {
+  "al-dia":          { label: "Al día",          variant: "success" },
+  "con-deuda":       { label: "Con deuda",        variant: "danger"  },
+  "sin-propietario": { label: "Sin propietario",  variant: "neutral" },
+};
+
+export function PagoBadge({ estado }: { estado: PagoEstado }) {
+  const { label, variant } = PAGO_META[estado];
+  return <Badge variant={variant}>{label}</Badge>;
+}
+

@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { obtenerMorosidad } from "@/lib/deuda";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
-import { EstadoBadge } from "@/components/ui/badge";
+import { PagoBadge, type PagoEstado } from "@/components/ui/badge";
+import { ContactButtons } from "@/components/ui/contact-buttons";
 import { tableWrapClass, theadRowClass, thClass, tdClass, trClass, emptyTdClass } from "@/components/ui/table";
 
 export default async function AdminDashboardPage() {
@@ -12,15 +13,21 @@ export default async function AdminDashboardPage() {
   const [{ data: lotes }, { count: totalPropietarios }, morosidad] = await Promise.all([
     supabase
       .from("lote")
-      .select("id, numero, estado, propietario_id, perfil:propietario_id(nombre)")
+      .select("id, numero, estado, propietario_id, perfil:propietario_id(nombre, email, telefono)")
       .order("numero"),
     supabase.from("perfil").select("id", { count: "exact", head: true }).eq("rol", "owner"),
     obtenerMorosidad(supabase),
   ]);
 
   const deudaTotal = morosidad.reduce((acc, d) => acc + d.saldo, 0);
-  const lotesConDeuda = new Set(morosidad.flatMap((d) => d.loteIds)).size;
+  const lotesConDeudaIds = new Set(morosidad.flatMap((d) => d.loteIds));
+  const lotesConDeuda = lotesConDeudaIds.size;
   const lotesAlDia = (lotes?.length ?? 0) - lotesConDeuda;
+
+  function pagoEstado(loteId: string, propietarioId: string | null): PagoEstado {
+    if (!propietarioId) return "sin-propietario";
+    return lotesConDeudaIds.has(loteId) ? "con-deuda" : "al-dia";
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -28,7 +35,9 @@ export default async function AdminDashboardPage() {
 
       <div className="flex flex-wrap gap-4">
         <StatCard label="Deuda total pendiente" value={`$${deudaTotal.toFixed(2)}`} tone={deudaTotal > 0 ? "danger" : "success"} />
-        <StatCard label="Lotes con deuda" value={lotesConDeuda} tone={lotesConDeuda > 0 ? "warning" : "success"} />
+        <Link href="/admin/lotes?deuda=1" className="flex-1 min-w-[10rem]">
+          <StatCard label="Lotes con deuda" value={lotesConDeuda} tone={lotesConDeuda > 0 ? "warning" : "success"} className="h-full" clickable />
+        </Link>
         <StatCard label="Lotes al día" value={lotesAlDia} tone="success" />
         <StatCard label="Propietarios registrados" value={totalPropietarios ?? 0} />
       </div>
@@ -65,10 +74,10 @@ export default async function AdminDashboardPage() {
             <thead>
               <tr className={theadRowClass}>
                 <th className={thClass}>Propietario</th>
-                <th className={thClass}>Teléfono</th>
                 <th className={thClass}>Lotes</th>
                 <th className={thClass}>Facturas impagas</th>
                 <th className={thClass}>Saldo</th>
+                <th className={thClass}>Contacto</th>
               </tr>
             </thead>
             <tbody>
@@ -83,7 +92,6 @@ export default async function AdminDashboardPage() {
                       d.nombre
                     )}
                   </td>
-                  <td className={tdClass}>{d.telefono ?? "—"}</td>
                   <td className={tdClass}>
                     {d.loteIds.length > 0
                       ? d.loteIds.map((loteId, i) => (
@@ -98,11 +106,14 @@ export default async function AdminDashboardPage() {
                   </td>
                   <td className={tdClass}>{d.facturasImpagas}</td>
                   <td className={`${tdClass} font-medium text-danger`}>${d.saldo.toFixed(2)}</td>
+                  <td className={tdClass}>
+                    <ContactButtons email={d.email} telefono={d.telefono} />
+                  </td>
                 </tr>
               ))}
               {morosidad.length === 0 && (
                 <tr>
-                  <td colSpan={5} className={emptyTdClass}>
+                  <td colSpan={6} className={emptyTdClass}>
                     Nadie tiene deuda pendiente 🎉
                   </td>
                 </tr>
@@ -125,12 +136,14 @@ export default async function AdminDashboardPage() {
               <tr className={theadRowClass}>
                 <th className={thClass}>Lote</th>
                 <th className={thClass}>Propietario</th>
-                <th className={thClass}>Estado lote</th>
+                <th className={thClass}>Pago</th>
+                <th className={thClass}>Contacto</th>
               </tr>
             </thead>
             <tbody>
               {lotes?.map((l) => {
-                const propietario = l.perfil as unknown as { nombre: string } | null;
+                const propietario = l.perfil as unknown as { nombre: string; email: string | null; telefono: string | null } | null;
+                const pago = pagoEstado(l.id, l.propietario_id);
                 return (
                   <tr key={l.id} className={trClass}>
                     <td className={tdClass}>
@@ -144,18 +157,21 @@ export default async function AdminDashboardPage() {
                           {propietario?.nombre}
                         </Link>
                       ) : (
-                        "Sin propietario"
+                        <span className="text-muted-foreground">—</span>
                       )}
                     </td>
                     <td className={tdClass}>
-                      <EstadoBadge estado={l.estado} />
+                      <PagoBadge estado={pago} />
+                    </td>
+                    <td className={tdClass}>
+                      <ContactButtons email={propietario?.email} telefono={propietario?.telefono} />
                     </td>
                   </tr>
                 );
               })}
               {lotes?.length === 0 && (
                 <tr>
-                  <td colSpan={3} className={emptyTdClass}>
+                  <td colSpan={4} className={emptyTdClass}>
                     Todavía no hay lotes cargados.
                   </td>
                 </tr>

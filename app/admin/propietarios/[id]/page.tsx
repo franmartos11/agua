@@ -50,6 +50,57 @@ export default async function PropietarioDetailPage({
     0,
   );
 
+  // ── Medidores + lectura del mes actual ──────────────────────────────────
+  const now = new Date();
+  const mesActual = now.getMonth() + 1; // 1-12
+  const anioActual = now.getFullYear();
+  const primerDiaMes = `${anioActual}-${String(mesActual).padStart(2, "0")}-01`;
+  const ultimoDia = new Date(anioActual, mesActual, 0).getDate();
+  const ultimoDiaMes = `${anioActual}-${String(mesActual).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
+
+  const { data: medidores } = loteIds.length
+    ? await supabase
+        .from("medidor")
+        .select("id, numero_serie, tipo, lote:lote_id(numero)")
+        .in("lote_id", loteIds)
+        .eq("activo", true)
+        .order("numero_serie")
+    : { data: [] };
+
+  type LoteRef = { numero: string } | null;
+  type MedidorConLectura = {
+    id: string;
+    numero_serie: string;
+    tipo: string;
+    lote: LoteRef;
+    lecturaMes: { valor: number; fecha: string } | null;
+  };
+
+  const medidoresConLectura: MedidorConLectura[] = await Promise.all(
+    (medidores ?? []).map(async (m) => {
+      const { data: lectura } = await supabase
+        .from("lectura")
+        .select("valor, fecha")
+        .eq("medidor_id", m.id)
+        .gte("fecha", primerDiaMes)
+        .lte("fecha", ultimoDiaMes)
+        .order("fecha", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      return {
+        id: m.id,
+        numero_serie: m.numero_serie,
+        tipo: m.tipo,
+        lote: m.lote as unknown as LoteRef,
+        lecturaMes: lectura ?? null,
+      };
+    }),
+  );
+
+  const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+  const nombreMes = MESES[mesActual - 1];
+
   const updateAction = actualizarPropietario.bind(null, id);
   const deleteAction = eliminarPropietario.bind(null, id);
 
@@ -80,6 +131,51 @@ export default async function PropietarioDetailPage({
           <p className="text-xs font-medium text-muted-foreground">Facturas emitidas</p>
           <p className="mt-1 text-2xl font-semibold text-foreground">{todasLasFacturas.length}</p>
         </Card>
+      </div>
+
+      {/* ── Medición del mes actual ── */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-foreground">
+          Medición de {nombreMes} {anioActual}
+        </h2>
+        {medidoresConLectura.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No tiene medidores activos asignados.</p>
+        ) : (
+          <div className="flex flex-wrap gap-3">
+            {medidoresConLectura.map((m) => (
+              <Card key={m.id} className="flex-1 min-w-[12rem]">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground capitalize">
+                      Medidor {m.tipo} · Lote {m.lote?.numero ?? "—"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">{m.numero_serie}</p>
+                  </div>
+                  <Link
+                    href={`/admin/medidores/${m.id}`}
+                    className="text-xs text-primary hover:underline whitespace-nowrap"
+                  >
+                    Ver →
+                  </Link>
+                </div>
+                {m.lecturaMes ? (
+                  <div className="mt-3">
+                    <p className="text-2xl font-semibold text-foreground">
+                      {Number(m.lecturaMes.valor).toLocaleString("es-AR")}{" "}
+                      <span className="text-sm font-normal text-muted-foreground">m³</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Lectura al {m.lecturaMes.fecha}</p>
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <p className="text-sm font-medium text-warning">Sin lectura este mes</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Aún no se cargó la medición</p>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       <Card>

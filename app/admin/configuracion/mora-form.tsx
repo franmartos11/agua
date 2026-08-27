@@ -40,7 +40,7 @@ export function MoraForm() {
         />
       </Field>
       <Button type="submit" variant="secondary" size="sm" disabled={isPending}>
-        {isPending ? "Agregando..." : "+ Agregar tramo"}
+        {isPending ? "Agregando..." : "+ Agregar recargo"}
       </Button>
       {result && result !== "ok" && (
         <p className="w-full rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">{result}</p>

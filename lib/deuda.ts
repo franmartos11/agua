@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export type DeudaPropietario = {
   propietarioId: string | null;
   nombre: string;
+  email: string | null;
   telefono: string | null;
   loteIds: string[];
   lotesNumeros: string[];
@@ -18,14 +19,14 @@ export type DeudaPropietario = {
 export async function obtenerMorosidad(supabase: SupabaseClient): Promise<DeudaPropietario[]> {
   const { data: facturas } = await supabase
     .from("factura")
-    .select("monto_total, monto_pagado, lote:lote_id(id, numero, propietario_id, perfil:propietario_id(nombre, telefono))")
+    .select("monto_total, monto_pagado, lote:lote_id(id, numero, propietario_id, perfil:propietario_id(nombre, email, telefono))")
     .neq("estado", "pagada");
 
   type Lote = {
     id: string;
     numero: string;
     propietario_id: string | null;
-    perfil: { nombre: string; telefono: string | null } | null;
+    perfil: { nombre: string; email: string | null; telefono: string | null } | null;
   };
 
   const grupos = new Map<
@@ -39,6 +40,7 @@ export async function obtenerMorosidad(supabase: SupabaseClient): Promise<DeudaP
     const actual = grupos.get(key) ?? {
       propietarioId: lote?.propietario_id ?? null,
       nombre: lote?.perfil?.nombre ?? "Sin propietario asignado",
+      email: lote?.perfil?.email ?? null,
       telefono: lote?.perfil?.telefono ?? null,
       loteIds: new Set<string>(),
       lotesNumeros: new Set<string>(),
